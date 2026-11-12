@@ -247,7 +247,12 @@ used directly. The password is never read from the file. See
 
 ```bash
 ./scripts/install.py -f my-values.yaml
+./scripts/install.py -f cluster-base.yaml -f seaweedfs-overlay.yaml
 ```
+
+Repeat `-f` / `--values` for overlays. Helm applies files in order; later keys win, the same
+as `helm upgrade --install … -f base.yaml -f overlay.yaml`. The installer's pre-install
+checks merge the files the same way.
 
 Used alone, `-f` is passed to helm as is (the installer adds only
 `mlrunMigrations.enabled: false`, see [Upgrading](#upgrading)), no pull secret is created,
@@ -831,7 +836,7 @@ else, `false` and `0` included, leaves it off.
 | `--dry-run` | `DRY_RUN` | Change nothing: render the chart with `--dry-run=server`, or list what `uninstall` would remove |
 | `--non-interactive` | `NON_INTERACTIVE`, `CI` | Never prompt; exit 1 on a missing required value |
 | `--config FILE` | `CONFIG_FILE` | Read defaults from a `ce-config.yaml` |
-| `-f`, `--values FILE` | | Base values file; see [From a values file](#from-a-values-file) |
+| `-f`, `--values FILE` | | Helm values file; repeat for overlays (later files win); see [From a values file](#from-a-values-file) |
 | `--chart-path DIR` | `CHART_PATH` | Install a local chart directory instead of the published chart; not with `--ce-version` |
 | `--update-dependencies` | `UPDATE_DEPENDENCIES` | With `--chart-path`: fetch the chart dependencies `charts/` lacks |
 | `--ce-version VERSION` | `CE_VERSION` | Install this published chart version (default: the newest stable one); not with `--chart-path` |

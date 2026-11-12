@@ -1,0 +1,3 @@
+# Second layer for repeated -f golden / unit cases. Wins over values.yaml where both set a key.
+global:
+  externalHostAddress: host.from.overlay

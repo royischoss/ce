@@ -141,7 +141,7 @@ class Settings:
     # Flag > env.
     skip_registry_secret: bool = False
     skip_validators: bool = False
-    values_file: str = ""
+    values_files: List[str] = field(default_factory=list)
     show_progress: bool = False
     # "info" or "warning"; empty until the flag, LOG_LEVEL or the config file sets it.
     log_level: str = ""
@@ -222,6 +222,22 @@ class Settings:
     # Parsed form of MIN_K8S_VERSION.
     min_k8s_major: Optional[int] = None
     min_k8s_minor: Optional[int] = None
+
+    @property
+    def values_file(self) -> str:
+        return self.values_files[0] if self.values_files else ""
+
+    @values_file.setter
+    def values_file(self, path: str) -> None:
+        self.values_files = [path] if path else []
+
+
+def describe_values_files(files: List[str]) -> str:
+    if not files:
+        return ""
+    if len(files) == 1:
+        return files[0]
+    return ", ".join(files)
 
 
 # --------------------------------------------------------------------------------------

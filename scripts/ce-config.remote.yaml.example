@@ -22,7 +22,10 @@ installer:
   # The address users reach the NodePorts or Ingress hosts on: a node IP, a load balancer
   # or a DNS name (EXTERNAL_HOST_ADDRESS). auto only knows local clusters.
   externalHostAddress: 203.0.113.10
-  valuesFile: ""               # -f/--values: your own helm values file, read before this one
+  valuesFile: ""               # -f/--values: one helm values file (use valuesFiles for several)
+  # valuesFiles:               # ordered overlays; later entries win, as with repeated -f
+  #   - cluster-base.yaml
+  #   - seaweedfs-overlay.yaml
   nonInteractive: true         # --non-interactive: never prompt, fail on a missing value
   triggerMigrations: false     # --trigger-migrations: run the MLRun DB migrations on this upgrade
   logLevel: info               # --log-level/LOG_LEVEL: info, or warning for warnings only

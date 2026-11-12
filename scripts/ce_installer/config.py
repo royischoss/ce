@@ -38,6 +38,7 @@ SCHEMA: Dict = {
         "releaseName": str,
         "externalHostAddress": str,
         "valuesFile": str,
+        "valuesFiles": list,
         "nonInteractive": bool,
         "logLevel": str,
         "triggerMigrations": bool,
@@ -136,6 +137,22 @@ def cfg(data: Dict, *path: str) -> str:
     return as_text(node)
 
 
+def cfg_list(data: Dict, *path: str) -> List[str]:
+    node = data
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return []
+        node = node[key]
+    if not isinstance(node, list):
+        return []
+    files: List[str] = []
+    for item in node:
+        text = as_text(item)
+        if text:
+            files.append(text)
+    return files
+
+
 def _schema_paths(schema: Dict, prefix: str = "") -> Dict[str, str]:
     """Every key's name, mapped to the dotted path of the block it belongs to."""
     paths: Dict[str, str] = {}
@@ -174,6 +191,8 @@ def _type_error(where: str, kind: type, value) -> Optional[str]:
     if kind is str and not isinstance(value, str):
         # A number here is almost always a version YAML read as a float: 1.30 becomes 1.3.
         return f"{where}: expected text, got {value!r}; put the value in quotes"
+    if kind is list and not isinstance(value, list):
+        return f"{where}: expected a list, got {value!r}"
     return None
 
 
@@ -191,6 +210,15 @@ def validate_structure(data, schema: Dict = SCHEMA, path: str = "") -> List[str]
             errors.append(_unknown_key(path, str(key), list(schema)))
         elif isinstance(kind, dict):
             errors.extend(validate_structure(value, kind, where))
+        elif kind is list:
+            error = _type_error(where, list, value)
+            if error:
+                errors.append(error)
+            elif value is not None:
+                for index, item in enumerate(value):
+                    error = _type_error(f"{where}[{index}]", str, item)
+                    if error:
+                        errors.append(error)
         else:
             error = _type_error(where, kind, value)
             if error:
@@ -297,8 +325,14 @@ def _apply_flag_and_env_settings(data: Dict, settings: Settings) -> None:
         if not getattr(settings, attr) and cfg(data, "installer", *path) == "true":
             setattr(settings, attr, True)
 
-    if not settings.values_file:
-        settings.values_file = cfg(data, "installer", "valuesFile")
+    if not settings.values_files:
+        listed = cfg_list(data, "installer", "valuesFiles")
+        if listed:
+            settings.values_files = listed
+        else:
+            single = cfg(data, "installer", "valuesFile")
+            if single:
+                settings.values_files = [single]
     if not settings.log_level:
         settings.log_level = cfg(data, "installer", "logLevel")
 
@@ -459,7 +493,7 @@ def check_required_non_interactive(settings: Settings) -> None:
     # A dry run asks nothing about the registry and needs none of it.
     if not settings.non_interactive or settings.dry_run:
         return
-    if settings.values_file and not settings.config_file:
+    if settings.values_files and not settings.config_file:
         return
 
     missing: List[str] = []

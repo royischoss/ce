@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from .cluster import chart_app_version, effective_context
 from .console import die, log_error, log_info, log_warn
-from .helm_ops import README_URL, _lookup, _values_file_contents
+from .helm_ops import README_URL, _lookup, _values_file_contents, _values_file_holding_key
 from .settings import (
     DEFAULT_DOCKER_SERVER,
     MIN_HELM_VERSION,
@@ -211,7 +211,7 @@ def validate_registry_auth(settings: Settings) -> bool:
             reason = f"--skip-secret, using the existing secret '{name}'"
         elif settings.registry_secret_reused:
             reason = f"reusing the installer's secret '{name}' from a previous install"
-        elif settings.values_file and not settings.config_file:
+        elif settings.values_files and not settings.config_file:
             reason = "-f-only mode, the values file names the pull secret"
         else:
             reason = f"secret '{name}' already exists and is used as it stands"
@@ -316,7 +316,8 @@ def resolve_nodeport_conflicts(settings: Settings) -> bool:
             continue
         if _lookup(user_values, key):
             log_error(
-                f"  NodePort {port} ({key}, set in {settings.values_file}) is already held "
+                f"  NodePort {port} ({key}, set in {_values_file_holding_key(settings, key)}) "
+                "is already held "
                 f"by Service {holder}. Choose a free port for {key}."
             )
             refused += 1

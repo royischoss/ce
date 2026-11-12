@@ -547,7 +547,34 @@ def test_enable_ingress_does_not_swallow_a_following_short_option(ran, tmp_path)
 
     assert settings.enable_ingress is True
     assert settings.ingress_class == "nginx"
-    assert settings.values_file == str(values)
+    assert settings.values_files == [str(values)]
+
+
+def test_later_values_files_win_in_preflight_merge(settings, tmp_path):
+    base = tmp_path / "base.yaml"
+    overlay = tmp_path / "overlay.yaml"
+    base.write_text(
+        "global:\n  externalHostAddress: host.from.base\n  registry:\n    url: a\n"
+    )
+    overlay.write_text("global:\n  externalHostAddress: host.from.overlay\n")
+    settings.values_files = [str(base), str(overlay)]
+
+    from ce_installer.helm_ops import _values_file_contents
+
+    merged = _values_file_contents(settings)
+    assert merged["global"]["externalHostAddress"] == "host.from.overlay"
+    assert merged["global"]["registry"]["url"] == "a"
+
+
+def test_repeated_values_files_are_kept_in_order(ran, tmp_path):
+    base = tmp_path / "base.yaml"
+    overlay = tmp_path / "overlay.yaml"
+    base.write_text("global: {}\n")
+    overlay.write_text("seaweedfs:\n  enabled: true\n")
+
+    _, settings = ran("-f", str(base), "-f", str(overlay))
+
+    assert settings.values_files == [str(base), str(overlay)]
 
 
 def test_enable_otel_does_not_swallow_a_following_short_option(ran, tmp_path):
@@ -558,7 +585,7 @@ def test_enable_otel_does_not_swallow_a_following_short_option(ran, tmp_path):
 
     # Bare --enable-otel means full, and "-f" is an option rather than the MODE.
     assert settings.enable_otel_instrumentation is True
-    assert settings.values_file == str(values)
+    assert settings.values_files == [str(values)]
 
 
 @pytest.mark.parametrize("flag", ["--chart-path", "--ce-version", "--config", "--kube-context"])
@@ -631,7 +658,7 @@ def test_the_prerequisites_are_checked_before_anything_else(monkeypatch):
     )
 
     with pytest.raises(InstallerError):
-        cli.execute(Settings(values_file="/nonexistent/values.yaml"))
+        cli.execute(Settings(values_files=["/nonexistent/values.yaml"]))
 
     assert called[0] == "requirements"
 
@@ -664,7 +691,7 @@ def test_a_values_file_alone_skips_secret_creation(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "apply_registry_secret", lambda s: called.append("apply"))
     monkeypatch.setattr(cli, "gather_install_params", lambda s: called.append("params"))
 
-    cli.execute(Settings(values_file=str(values)))
+    cli.execute(Settings(values_files=[str(values)]))
 
     # -f alone is self-contained: the file must already reference an existing secret.
     assert called == []
@@ -684,7 +711,7 @@ def test_a_local_registry_wins_over_the_values_files_registry(monkeypatch, tmp_p
     monkeypatch.setattr(cli, "prepare_registry_secret", lambda s: called.append("secret") or True)
     monkeypatch.setattr(cli, "apply_registry_secret", lambda s: called.append("apply"))
     settings = Settings(
-        values_file=str(values),
+        values_files=[str(values)],
         local_registry=True,
         local_registry_url="local-registry.mlrun.svc.cluster.local:5000",
     )
@@ -713,7 +740,7 @@ def test_a_values_file_with_config_still_creates_the_secret(monkeypatch, tmp_pat
     monkeypatch.setattr(cli, "apply_registry_secret", lambda s: called.append("apply"))
     monkeypatch.setattr(cli, "gather_install_params", lambda s: called.append("params"))
 
-    cli.execute(Settings(values_file=str(values), config_file=str(config)))
+    cli.execute(Settings(values_files=[str(values)], config_file=str(config)))
 
     # Composition, not exclusivity: --config still drives secret creation so its curated
     # fields have something to layer --set on.
@@ -729,7 +756,7 @@ def test_a_missing_values_file_is_refused_before_anything_runs(monkeypatch):
     monkeypatch.setattr(cli, "resolve_external_host", lambda s: None)
 
     with pytest.raises(InstallerError):
-        cli.execute(Settings(values_file="/nonexistent/values.yaml", local_registry=True))
+        cli.execute(Settings(values_files=["/nonexistent/values.yaml"], local_registry=True))
 
     # The check used to sit after ensure_namespace and deploy_local_registry, so a mistyped
     # -f created a namespace and a running registry Deployment on the way to reporting that

@@ -714,7 +714,10 @@ def test_each_example_is_valid_and_lists_every_key(settings, example):
     assert config.validate_structure(data) == []
     # password is in the schema only so a file holding one gets the warning. components.*
     # is commented out: true and false both override, so a copied example must not decide.
-    expected = _leaf_paths(config.SCHEMA) - {"installer.registry.secret.password"}
+    expected = _leaf_paths(config.SCHEMA) - {
+        "installer.registry.secret.password",
+        "installer.valuesFiles",
+    }
     assert _leaf_paths(data) == {p for p in expected if not p.startswith("installer.components.")}
     assert "  #   spark: false" in (SCRIPTS / example).read_text()
 
@@ -806,10 +809,24 @@ def test_toggles_come_from_the_config_file(settings, tmp_path):
     config.load_config(settings)
 
     assert settings.non_interactive and settings.trigger_migrations
-    assert settings.values_file == "my-values.yaml"
+    assert settings.values_files == ["my-values.yaml"]
     assert settings.skip_registry_secret and settings.local_registry and settings.devel
     assert settings.update_dependencies and settings.skip_validators and settings.show_progress
     assert (settings.enable_ingress, settings.ingress_class) == (True, "traefik")
+
+
+def test_values_files_list_from_config(settings, tmp_path):
+    settings.config_file = write_config(
+        tmp_path,
+        "installer:\n"
+        "  valuesFiles:\n"
+        "    - cluster-base.yaml\n"
+        "    - overlay.yaml\n",
+    )
+
+    config.load_config(settings)
+
+    assert settings.values_files == ["cluster-base.yaml", "overlay.yaml"]
 
 
 @pytest.mark.parametrize(("already", "expected"), [("", "warning"), ("info", "info")])

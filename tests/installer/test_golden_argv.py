@@ -89,6 +89,8 @@ CASES = [
     # must win over the same keys in the values file.
     "--dry-run --config tests/installer/fixtures/ce-config.yaml",
     "--dry-run -f tests/installer/fixtures/values.yaml",
+    "--dry-run -f tests/installer/fixtures/values.yaml "
+    "-f tests/installer/fixtures/values-overlay.yaml",
     "--dry-run --config tests/installer/fixtures/ce-config.yaml "
     "-f tests/installer/fixtures/values.yaml",
     "--dry-run --config tests/installer/fixtures/nonexistent.yaml",

@@ -21,7 +21,10 @@ installer:
   # auto = detect it (minikube ip, Docker Desktop's localhost, a node IP); or pin an IP or
   # hostname (EXTERNAL_HOST_ADDRESS).
   externalHostAddress: auto
-  valuesFile: ""               # -f/--values: your own helm values file, read before this one
+  valuesFile: ""               # -f/--values: one helm values file (use valuesFiles for several)
+  # valuesFiles:               # ordered overlays; later entries win, as with repeated -f
+  #   - cluster-base.yaml
+  #   - seaweedfs-overlay.yaml
   nonInteractive: false        # --non-interactive: never prompt (set by CI=true)
   triggerMigrations: false     # --trigger-migrations: run the MLRun DB migrations on this upgrade
   logLevel: info               # --log-level/LOG_LEVEL: info, or warning for warnings only

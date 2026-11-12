@@ -94,7 +94,7 @@ def build_set_flags(settings: Settings) -> List[str]:
     # registry. Every other mode (--config alone, or -f + --config together) sets these as
     # --set, which helm applies after --values, so a config-resolved value always wins over
     # the same key in a -f file.
-    if settings.local_registry or not settings.values_file or settings.config_file:
+    if settings.local_registry or not settings.values_files or settings.config_file:
         flags += ["--set", f"global.registry.url={settings.registry_url}"]
         flags += ["--set", f"global.registry.secretName={settings.registry_secret_name}"]
         flags += [
@@ -280,21 +280,22 @@ def refuse_values_file_collision(settings: Settings) -> None:
     read them, and the file they wrote would be gone. Restoring a snapshot by passing it
     back with -f is the likely way in.
     """
-    if not settings.values_file:
+    if not settings.values_files:
         return
-    user_file = Path(settings.values_file).resolve()
-    written = (
+    written = {
         Path(settings.generated_values_file).resolve(),
         previous_values_file(settings),
         value_changes_file(settings),
-    )
-    if user_file not in written:
-        return
-    raise die(
-        f"-f {settings.values_file} is a file the installer writes ({user_file}), and would "
-        "be overwritten. Copy it to another name and pass that, or set "
-        "GENERATED_VALUES_FILE to another path."
-    )
+    }
+    for path in settings.values_files:
+        user_file = Path(path).resolve()
+        if user_file not in written:
+            continue
+        raise die(
+            f"-f {path} is a file the installer writes ({user_file}), and would "
+            "be overwritten. Copy it to another name and pass that, or set "
+            "GENERATED_VALUES_FILE to another path."
+        )
 
 
 def merge_values(base: dict, overlay: dict) -> dict:
@@ -471,15 +472,34 @@ def plain_helm_equivalent(settings: Settings, cmd: List[str]) -> List[str]:
     return lines
 
 
+def _values_file_holding_key(settings: Settings, dotted: str) -> str:
+    """The last -f file that sets `dotted`, for error messages."""
+    from .settings import describe_values_files
+
+    for path in reversed(settings.values_files):
+        try:
+            loaded = yaml.safe_load(Path(path).read_text())
+        except (OSError, yaml.YAMLError):
+            continue
+        if isinstance(loaded, dict) and _lookup(loaded, dotted) is not None:
+            return path
+    labeled = describe_values_files(settings.values_files)
+    return labeled if labeled else "values file"
+
+
 def _values_file_contents(settings: Settings) -> dict:
-    if not settings.values_file:
+    if not settings.values_files:
         return {}
-    try:
-        loaded = yaml.safe_load(Path(settings.values_file).read_text())
-    except (OSError, yaml.YAMLError):
-        # helm reads the same file next and reports the problem in its own words.
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
+    merged: dict = {}
+    for path in settings.values_files:
+        try:
+            loaded = yaml.safe_load(Path(path).read_text())
+        except (OSError, yaml.YAMLError):
+            # helm reads the same file next and reports the problem in its own words.
+            continue
+        if isinstance(loaded, dict):
+            merged = merge_values(merged, loaded)
+    return merged
 
 
 def _lookup(values: dict, dotted: str) -> object:
@@ -506,8 +526,8 @@ def build_helm_install_command(settings: Settings, installer_values: str = "") -
         "--timeout",
         settings.helm_timeout,
     )
-    if settings.values_file:
-        cmd += ["--values", settings.values_file]
+    for path in settings.values_files:
+        cmd += ["--values", path]
     if installer_values:
         cmd += ["--values", installer_values]
     cmd += migration_set_flags(settings)

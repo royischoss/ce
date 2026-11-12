@@ -24,7 +24,7 @@ from rich.text import Text
 
 from .cluster import api_server, effective_context, newest_kind
 from .console import cancel, log_info, log_result, log_warn, out
-from .settings import NODEPORTS, Settings, confirm, value_changes_file
+from .settings import NODEPORTS, Settings, confirm, describe_values_files, value_changes_file
 from .shell import helm, kubectl
 
 
@@ -109,8 +109,8 @@ def confirm_target(settings: Settings) -> None:
         chart = f"{settings.chart_ref or 'mlrun-ce/mlrun-ce'} {settings.ce_version}".rstrip()
         if settings.ce_version_is_newest or not settings.ce_version:
             chart += f" ({newest_kind(settings)})"
-    if settings.values_file and not settings.config_file and not settings.local_registry:
-        registry = f"from {settings.values_file}"
+    if settings.values_files and not settings.config_file and not settings.local_registry:
+        registry = f"from {describe_values_files(settings.values_files)}"
     else:
         registry = f"{settings.registry_url} (pull secret '{settings.registry_secret_name}')"
 

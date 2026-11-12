@@ -70,6 +70,7 @@ from .settings import (
     UNKNOWN_VERSION,
     Settings,
     apply_version_floors,
+    describe_values_files,
     env_str,
     env_true,
 )
@@ -314,8 +315,9 @@ def execute(settings: Settings) -> None:
     # mistake caught there — a mistyped -f, an unpublished chart, a prompt answered with
     # Ctrl-C, a "no" to the summary — leaves the cluster exactly as it was. Everything
     # below it writes.
-    if settings.values_file and not Path(settings.values_file).is_file():
-        raise die(f"Values file not found: {settings.values_file}")
+    for path in settings.values_files:
+        if not Path(path).is_file():
+            raise die(f"Values file not found: {path}")
     refuse_values_file_collision(settings)
     validate_chart_path(settings)
 
@@ -336,9 +338,9 @@ def execute(settings: Settings) -> None:
     # -f combined with --config runs the same secret creation / registry resolution as
     # --config-only, so the config-resolved fields have something to layer their --set on.
     write_secret = False
-    if settings.values_file and not settings.config_file:
+    if settings.values_files and not settings.config_file:
         log_info(
-            f"Using values file: {settings.values_file} "
+            f"Using values file(s): {describe_values_files(settings.values_files)} "
             "(skipping secret creation and install prompts)"
         )
         # --local-registry names the registry, so it wins over the file's: otherwise the
@@ -452,15 +454,16 @@ def install(
         help="Skip the pre-install validators (K8s/Helm version, StorageClass, registry auth, "
         "NodePort conflicts, node capacity)",
     ),
-    values: Optional[str] = typer.Option(
+    values: Optional[List[str]] = typer.Option(
         None,
         "-f",
         "--values",
         metavar="FILE",
-        help="Use this YAML values file as the base for installation. Alone (no --config): "
-        "fully self-contained (global.registry.*, versions, everything) — skips secret "
-        "creation and prompts. Combined with --config: --config still creates the registry "
-        "secret, and the values it resolves win over the same keys in this file.",
+        help="Helm values file; repeat for overlays (later files win, as with helm). Alone "
+        "(no --config): fully self-contained (global.registry.*, versions, everything) — "
+        "skips secret creation and prompts. Combined with --config: --config still creates "
+        "the registry secret, and the values it resolves win over the same keys in these "
+        "files.",
     ),
     show_progress: bool = typer.Option(
         False,
@@ -620,7 +623,8 @@ def install(
         # CI auto-enables non-interactive, matching the bash installer.
         settings.non_interactive = settings.non_interactive or env_true("CI")
 
-        settings.values_file = values or ""
+        if values:
+            settings.values_files = list(values)
         settings.log_level = log_level or env_str("LOG_LEVEL")
         settings.kube_context = kube_context or env_str("KUBE_CONTEXT")
         settings.ce_version = ce_version or env_str("CE_VERSION")
